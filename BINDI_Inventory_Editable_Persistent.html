@@ -1,0 +1,188 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BINDI Inventory (Editable)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { font-family: sans-serif; background: #e8f5e9; margin: 0; padding: 0; }
+    header { background: #388e3c; color: white; padding: 10px; text-align: center; }
+    #login { display: flex; flex-direction: column; align-items: center; margin-top: 100px; }
+    #app { display: none; padding: 20px; }
+    .tabs button { padding: 10px; margin-right: 5px; }
+    .section { display: none; }
+    .section.active { display: block; }
+    .entry { background: white; padding: 10px; margin: 10px 0; border-radius: 5px; position: relative; }
+    label { display: block; margin: 5px 0; }
+    .small { padding: 4px 8px; font-size: 12px; margin: 5px; }
+    input[type="number"], input[type="text"], input[type="date"], select {
+      width: 100%; padding: 5px; margin-bottom: 10px;
+    }
+    .alert { color: red; font-weight: bold; }
+    .btn-group { display: flex; gap: 5px; margin-top: 10px; }
+    .edit-form { display: none; margin-top: 10px; background: #f1f8e9; padding: 10px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <header>BINDI Inventory (Editable)</header>
+
+  <div id="login">
+    <input type="password" id="pinInput" placeholder="Enter PIN" />
+    <button onclick="checkPin()">Login</button>
+    <p id="loginError" style="color:red;display:none;">Wrong PIN</p>
+  </div>
+
+  <div id="app">
+    <div class="tabs">
+      <button onclick="switchTab('clinic')">Clinic (OPD)</button>
+      <button onclick="switchTab('nursing')">Nursinghome</button>
+    </div>
+
+    <div id="clinic" class="section active">
+      <h2>Clinic (OPD)</h2>
+      <form onsubmit="addMedicine(event, 'clinic')">
+        <label>Medicine Name: <input id="cname" required /></label>
+        <label>Form:
+          <select id="cform">
+            <option value="Oral">Oral</option>
+            <option value="Injectable-IV">Injectable - IV</option>
+            <option value="Injectable-IM">Injectable - IM</option>
+          </select>
+        </label>
+        <label>Quantity (Boxes): <input type="number" id="cqty" required /></label>
+        <label>Units per Box: <input type="number" id="cunits" required /></label>
+        <label>Price per Box: ₹<input type="number" id="cprice" required /></label>
+        <label>Expiry Date: <input type="date" id="cexpiry" required /></label>
+        <button type="submit" class="small">Add Medicine</button>
+      </form>
+      <div id="clinicList"></div>
+    </div>
+
+    <div id="nursing" class="section">
+      <h2>Nursinghome</h2>
+      <form onsubmit="addMedicine(event, 'nursing')">
+        <label>Medicine Name: <input id="nname" required /></label>
+        <label>Form:
+          <select id="nform">
+            <option value="Oral">Oral</option>
+            <option value="Injectable-IV">Injectable - IV</option>
+            <option value="Injectable-IM">Injectable - IM</option>
+          </select>
+        </label>
+        <label>Quantity (Boxes): <input type="number" id="nqty" required /></label>
+        <label>Units per Box: <input type="number" id="nunits" required /></label>
+        <label>Price per Box: ₹<input type="number" id="nprice" required /></label>
+        <label>Expiry Date: <input type="date" id="nexpiry" required /></label>
+        <button type="submit" class="small">Add Medicine</button>
+      </form>
+      <div id="nursingList"></div>
+    </div>
+  </div>
+
+  <script>
+    const pin = "1234";
+    function checkPin() {
+      const input = document.getElementById("pinInput").value;
+      if (input === pin) {
+        document.getElementById("login").style.display = "none";
+        document.getElementById("app").style.display = "block";
+        loadData();
+      } else {
+        document.getElementById("loginError").style.display = "block";
+      }
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+      document.getElementById(tab).classList.add("active");
+    }
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+
+    function daysUntilExpiry(dateStr) {
+      const expiry = new Date(dateStr);
+      const today = new Date();
+      const diff = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+      return diff;
+    }
+
+    function addMedicine(event, section) {
+      event.preventDefault();
+      const prefix = section === 'clinic' ? 'c' : 'n';
+      const name = document.getElementById(prefix + "name").value;
+      const form = document.getElementById(prefix + "form").value;
+      const qty = parseInt(document.getElementById(prefix + "qty").value);
+      const units = parseInt(document.getElementById(prefix + "units").value);
+      const price = parseFloat(document.getElementById(prefix + "price").value);
+      const expiry = document.getElementById(prefix + "expiry").value;
+      const entry = { name, form, qty, units, price, expiry, timestamp: new Date().toLocaleString() };
+
+      const data = JSON.parse(localStorage.getItem(section) || "[]");
+      data.push(entry);
+      localStorage.setItem(section, JSON.stringify(data));
+      displayEntries(section);
+      event.target.reset();
+    }
+
+    function loadData() {
+      displayEntries("clinic");
+      displayEntries("nursing");
+    }
+
+    function displayEntries(section) {
+      const container = document.getElementById(section + "List");
+      container.innerHTML = "";
+      const data = JSON.parse(localStorage.getItem(section) || "[]");
+
+      data.forEach((entry, index) => {
+        const daysLeft = daysUntilExpiry(entry.expiry);
+        const entryDiv = document.createElement("div");
+        entryDiv.className = "entry";
+
+        entryDiv.innerHTML = `
+          <strong>${entry.name}</strong> (${entry.form})<br>
+          Boxes: ${entry.qty}, Units/box: ${entry.units}, Total Units: ${entry.qty * entry.units}<br>
+          ₹${entry.price.toFixed(2)} per box<br>
+          Expiry: ${formatDate(entry.expiry)} ${daysLeft <= 30 ? '<span class="alert">⚠️ Expiring Soon</span>' : ''}<br>
+          <div style="font-size:12px;color:#555">Logged on ${entry.timestamp}</div>
+          <div class="btn-group">
+            <button onclick="adjustQty('${section}', ${index}, 1)">🔼 Add</button>
+            <button onclick="adjustQty('${section}', ${index}, -1)">🔽 Use</button>
+            <button onclick="editEntry('${section}', ${index})">✏️ Edit</button>
+          </div>
+        `;
+        container.appendChild(entryDiv);
+      });
+    }
+
+    function adjustQty(section, index, delta) {
+      const data = JSON.parse(localStorage.getItem(section));
+      data[index].qty = Math.max(0, data[index].qty + delta);
+      localStorage.setItem(section, JSON.stringify(data));
+      displayEntries(section);
+    }
+
+    function editEntry(section, index) {
+      const data = JSON.parse(localStorage.getItem(section));
+      const item = data[index];
+      const newPrice = prompt("New price per box:", item.price);
+      const newUnits = prompt("New units per box:", item.units);
+      const newExpiry = prompt("New expiry date (yyyy-mm-dd):", item.expiry);
+
+      if (newPrice && newUnits && newExpiry) {
+        item.price = parseFloat(newPrice);
+        item.units = parseInt(newUnits);
+        item.expiry = newExpiry;
+        localStorage.setItem(section, JSON.stringify(data));
+        displayEntries(section);
+      }
+    }
+  </script>
+</body>
+</html>
